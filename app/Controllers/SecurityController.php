@@ -2,13 +2,11 @@
 
 use Zephyrus\Exceptions\IntrusionDetectionException;
 use Zephyrus\Security\Authorization;
-use Zephyrus\Security\ContentSecurityPolicy;
 
 abstract class SecurityController extends \Zephyrus\Security\Controller
 {
     public function before()
     {
-        $this->applyContentSecurityPolicies();
         $this->setupAuthorizations();
 
         // May throw an UnauthorizedAccessException, InvalidCsrfException or
@@ -71,31 +69,5 @@ abstract class SecurityController extends \Zephyrus\Security\Controller
          * the <admin> rule to be fulfilled for the route to be accessible.
          */
         parent::getAuthorization()->protect('/insert', Authorization::ALL, 'admin');
-    }
-
-    private function applyContentSecurityPolicies()
-    {
-        /**
-         * The ContentSecurityPolicy class help craft and maintain the CSP headers
-         * easily. These headers should be seriously crafted since they greatly help
-         * to prevent cross-site scripting attacks. For more information on the CSP
-         * headers please see : https://content-security-policy.com/
-         */
-        $csp = new ContentSecurityPolicy();
-        $csp->setDefaultSources(["'self'"]);
-        $csp->setFontSources(["'self'", 'https://fonts.googleapis.com', 'https://fonts.gstatic.com']);
-        $csp->setStyleSources(["'self'", 'https://fonts.googleapis.com']);
-        $csp->setScriptSources(["'self'", 'https://ajax.googleapis.com', 'https://maps.googleapis.com',
-            'https://www.google-analytics.com', 'http://connect.facebook.net']);
-        $csp->setChildSources(["'self'", 'http://staticxx.facebook.com']);
-        $csp->setImageSources(["'self'", 'data:']);
-        $csp->setBaseUri([$this->request->getBaseUrl()]);
-
-        /**
-         * The SecureHeader class is the instance that will actually sent all the
-         * headers concerning security including the CSP. Other headers includes policy
-         * concerning iframe integration, strict transport security and xss protection.
-         */
-        parent::getSecureHeader()->setContentSecurityPolicy($csp);
     }
 }
