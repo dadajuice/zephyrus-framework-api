@@ -1,6 +1,8 @@
 <?php namespace Models;
 
 use PDO;
+use Zephyrus\Application\Configuration;
+use Zephyrus\Database\Broker;
 use Zephyrus\Database\Database;
 use Zephyrus\Exceptions\DatabaseException;
 use Zephyrus\Network\RequestFactory;
@@ -54,11 +56,11 @@ class Token
         $request = RequestFactory::read();
         $tokenString = $request->getParameter(self::PARAMETER_NAME);
         if (is_null($tokenString)) {
-            return null;
+            return null; // exception token not provided
         }
         $tokenParts = explode(self::IDENTIFIER_SEPARATOR, $tokenString);
         if (count($tokenParts) != 2) {
-            return null;
+            return null; // exception invalid token format
         }
         list($value, $resourceIdentifier) = $tokenParts;
 
@@ -67,7 +69,7 @@ class Token
             self::deleteToken($token->resourceIdentifier);
             return $token;
         }
-        return null;
+        return null; // exception invalid token
     }
 
     /**
@@ -117,7 +119,11 @@ class Token
         $statement = self::$database->query("SELECT * FROM token WHERE resource_id = ?", [$resourceIdentifier]);
         $row = (object) $statement->next(PDO::FETCH_OBJ);
         if (empty($row)) {
-            return null;
+            return null; // Exception resource not found
+        }
+        if ($row->expiration < date(Broker::SQL_FORMAT_DATE_TIME)) {
+            self::deleteToken($resourceIdentifier);
+            return null; // Exception expiration
         }
         $token = new Token($row->resource_id);
         $token->value = $row->value;
@@ -133,7 +139,11 @@ class Token
     private function insertToken()
     {
         self::deleteToken($this->resourceIdentifier);
-        self::$database->query("INSERT INTO token(resource_id, value) VALUES(?, ?)", [$this->resourceIdentifier, $this->value]);
+        self::$database->query("INSERT INTO token(resource_id, value, expiration) VALUES(?, ?, ?)", [
+            $this->resourceIdentifier,
+            $this->value,
+            $this->getExpiration()
+        ]);
     }
 
     /**
@@ -157,9 +167,44 @@ class Token
     {
         if (is_null(self::$database)) {
             self::$database = new Database('sqlite:' . ROOT_DIR . '/token.db');
-            self::$database->query("PRAGMA temp_store=MEMORY");
-            self::$database->query("PRAGMA journal_mode=MEMORY");
-            self::$database->query("CREATE TABLE IF NOT EXISTS token(id INTEGER PRIMARY KEY AUTOINCREMENT, resource_id TEXT, value TEXT)");
+            self::pragma();
+            self::createTable();
         }
+    }
+
+    /**
+     * Send PRAGMA commands to prevent locking problems over virtual sharing.
+     *
+     * @throws DatabaseException
+     */
+    private static function pragma()
+    {
+        self::$database->query("PRAGMA temp_store=MEMORY");
+        self::$database->query("PRAGMA journal_mode=MEMORY");
+    }
+
+    /**
+     * Creates initial token table if needed.
+     *
+     * @throws DatabaseException
+     */
+    private static function createTable()
+    {
+        self::$database->query("CREATE TABLE IF NOT EXISTS token(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            resource_id TEXT, 
+            value TEXT, 
+            expiration TEXT
+        )");
+    }
+
+    /**
+     * @return string
+     */
+    private function getExpiration(): string
+    {
+        $configuredExpirationTime = Configuration::getConfiguration('api', 'expiration');
+        $currentTimestamp = time() + $configuredExpirationTime;
+        return date(Broker::SQL_FORMAT_DATE_TIME, $currentTimestamp);
     }
 }
