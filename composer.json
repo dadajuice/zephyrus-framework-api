@@ -1,0 +1,31 @@
+{
+  "name": "zephyrus/framework",
+  "description": "Basic framework for the Zephyrus core",
+  "license": "MIT",
+  "minimum-stability": "beta",
+  "authors": [
+    {
+      "name": "David Tucker",
+      "email": "davidt2003@msn.com"
+    }
+  ],
+  "require": {
+    "zephyrus/zephyrus": "^0.10"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "5.5.*",
+    "codeclimate/php-test-reporter": "dev-master"
+  },
+  "autoload": {
+    "psr-4": {
+      "Models\\": "app/Models",
+      "Controllers\\": "app/Controllers"
+    }
+  },
+  "scripts": {
+    "post-create-project-cmd": [
+      "rm LICENSE",
+      "rm README.md"
+    ]
+  }
+}

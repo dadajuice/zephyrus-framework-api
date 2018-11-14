@@ -1,0 +1,37 @@
+//-
+  Example that uses bootstrap default styles to display messages provided using Flash methods. Able
+  to work with list of messages and single message. Compliant with standard messaging level (error,
+  success, warning, notice and info).
+mixin flash()
+  +flashMessage(flash.success, 'success')
+  +flashMessage(flash.error, 'danger')
+  +flashMessage(flash.warning, 'warning')
+  +flashMessage(flash.notice, 'notice')
+  +flashMessage(flash.info, 'info')
+
+mixin flashMessage(data, type)
+  if data
+    div.alert(class='alert-' + type)
+      if is_array(data)
+        if count(data) > 1
+          ul
+            each message in data
+              if message != ""
+                li!=message
+        else
+          !=data[0]
+      else
+        !=data
+
+//-
+  Allows usage HTTP method besides GET and POST. Zephyrus verifies the existence of a __method
+  parameter in the request, if it exists, it overwrites the submitted method.
+mixin form(method, action)
+  -var httpMethod = method;
+  -var notStandard = method != 'get' && method != 'post';
+  if notStandard
+    -httpMethod = 'post';
+  form.form-horizontal(method=httpMethod, action=action)&attributes(attributes)
+    if notStandard
+      input(type="hidden", name="__method", value=method)
+    block

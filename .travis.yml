@@ -1,0 +1,23 @@
+language: php
+sudo: required
+php:
+  - 7.1
+
+env:
+  CODECLIMATE_REPO_TOKEN: YOUR_REPO
+
+before_script:
+  - sudo locale-gen --no-archive fr_CA.UTF-8
+  - locale -a
+  - travis_retry composer self-update
+  - travis_retry composer install --no-interaction
+
+script:
+  - vendor/bin/phpunit --verbose --stderr --coverage-clover=coverage.xml
+
+after_success:
+  - vendor/bin/test-reporter --coverage-report coverage.xml
+
+addons:
+  code_climate:
+    repo_token: YOUR_REPO
