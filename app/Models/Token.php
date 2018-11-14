@@ -2,6 +2,7 @@
 
 use PDO;
 use Zephyrus\Database\Database;
+use Zephyrus\Exceptions\DatabaseException;
 use Zephyrus\Network\RequestFactory;
 use Zephyrus\Security\Cryptography;
 
@@ -25,6 +26,28 @@ class Token
      */
     private $resourceIdentifier;
 
+    /**
+     * Use the constructor to prepare a new token with the given resource
+     * identifier. Will be properly generated only when the toString method
+     * is called.
+     *
+     * @throws DatabaseException
+     * @param string $resourceIdentifier
+     */
+    public function __construct(string $resourceIdentifier)
+    {
+        $this->resourceIdentifier = $resourceIdentifier;
+        self::loadDatabase();
+    }
+
+    /**
+     * Tries to obtain the token from the request parameters. If nothing
+     * matches, null is returned. Otherwise, the token is build from the
+     * database data.
+     *
+     * @throws DatabaseException
+     * @return Token | null
+     */
     public static function read(): ?Token
     {
         self::loadDatabase();
@@ -47,26 +70,33 @@ class Token
         return null;
     }
 
-    public function __construct(string $resourceIdentifier)
-    {
-        $this->resourceIdentifier = $resourceIdentifier;
-        self::loadDatabase();
-    }
-
+    /**
+     * Token is created and inserted in database when this method is called
+     * because it is considered "ready" only then.
+     *
+     * @throws DatabaseException
+     * @return string
+     */
     public function __toString(): string
     {
         $this->generate();
         return $this->value . self::IDENTIFIER_SEPARATOR . $this->resourceIdentifier;
     }
 
-    public function getResourceIdentifier()
+    /**
+     * @return string
+     */
+    public function getResourceIdentifier(): string
     {
         return $this->resourceIdentifier;
     }
 
     /**
-     * Generates a cryptographic random string of 64 characters, consider
-     * updating this method for a different mechanism.
+     * Generates a cryptographic random string of 64 characters and proceed to
+     * insert the token with the associated resource identifier to the
+     * database.
+     *
+     * @throws DatabaseException
      */
     private function generate()
     {
@@ -74,16 +104,14 @@ class Token
         $this->insertToken();
     }
 
-    private static function loadDatabase()
-    {
-        if (is_null(self::$database)) {
-            self::$database = new Database('sqlite:' . ROOT_DIR . '/token.db');
-            self::$database->query("PRAGMA temp_store=MEMORY");
-            self::$database->query("PRAGMA journal_mode=MEMORY");
-            self::$database->query("CREATE TABLE IF NOT EXISTS token(id INTEGER PRIMARY KEY AUTOINCREMENT, resource_id TEXT, value TEXT)");
-        }
-    }
-
+    /**
+     * Tries to fetch the token associated to the given resource identifier. Returns
+     * null if none is found, otherwise returns the actual instanced token.
+     *
+     * @param string $resourceIdentifier
+     * @return Token | null
+     * @throws DatabaseException
+     */
     private static function findTokenByResourceIdentifier(string $resourceIdentifier): ?Token
     {
         $statement = self::$database->query("SELECT * FROM token WHERE resource_id = ?", [$resourceIdentifier]);
@@ -96,14 +124,42 @@ class Token
         return $token;
     }
 
+    /**
+     * Query that take care to properly remove any saved token associated with
+     * the associated resource identifier and insert the token value.
+     *
+     * @throws DatabaseException
+     */
+    private function insertToken()
+    {
+        self::deleteToken($this->resourceIdentifier);
+        self::$database->query("INSERT INTO token(resource_id, value) VALUES(?, ?)", [$this->resourceIdentifier, $this->value]);
+    }
+
+    /**
+     * Removes the token with the given resource identifier from the database.
+     *
+     * @param int $resourceIdentifier
+     * @throws DatabaseException
+     */
     private static function deleteToken(int $resourceIdentifier)
     {
         self::$database->query("DELETE FROM token WHERE resource_id = ?", [$resourceIdentifier]);
     }
 
-    private function insertToken()
+    /**
+     * Since this class is build to work independently of any other data
+     * sources, it is using a simple sqlite file to store token data.
+     *
+     * @throws DatabaseException
+     */
+    private static function loadDatabase()
     {
-        self::deleteToken($this->resourceIdentifier);
-        self::$database->query("INSERT INTO token(resource_id, value) VALUES(?, ?)", [$this->resourceIdentifier, $this->value]);
+        if (is_null(self::$database)) {
+            self::$database = new Database('sqlite:' . ROOT_DIR . '/token.db');
+            self::$database->query("PRAGMA temp_store=MEMORY");
+            self::$database->query("PRAGMA journal_mode=MEMORY");
+            self::$database->query("CREATE TABLE IF NOT EXISTS token(id INTEGER PRIMARY KEY AUTOINCREMENT, resource_id TEXT, value TEXT)");
+        }
     }
 }
