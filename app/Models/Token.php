@@ -115,7 +115,7 @@ class Token
     private static function findTokenByResourceIdentifier(string $resourceIdentifier): ?Token
     {
         $statement = self::$database->query("SELECT * FROM token WHERE resource_id = ?", [$resourceIdentifier]);
-        $row = $statement->next(PDO::FETCH_OBJ);
+        $row = (object) $statement->next(PDO::FETCH_OBJ);
         if (empty($row)) {
             return null;
         }
