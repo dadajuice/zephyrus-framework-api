@@ -1,9 +1,16 @@
 <?php namespace Controllers;
 
+use Models\Token;
+use Zephyrus\Application\Configuration;
 use Zephyrus\Network\Response;
 
 abstract class ApiController extends SecurityController
 {
+    /**
+     * @var string
+     */
+    protected $resourceIdentifier = "";
+
     /**
      * Basic sample API authentication with a simple API KEY that the
      * connecting client must provide. Useful for being really easy to
@@ -39,15 +46,24 @@ abstract class ApiController extends SecurityController
      */
     public function before()
     {
-        $apiKey = $this->request->getHeader('X-API-KEY');
-        if (is_null($apiKey)) {
-            $apiKey = $this->request->getParameter('apikey');
+        $apiConfig = Configuration::getConfiguration('api');
+        if ($apiConfig['enable_api_key']) {
+            $apiKey = $this->request->getHeader('X-API-KEY');
+            if (is_null($apiKey)) {
+                $apiKey = $this->request->getParameter('apikey');
+            }
+            if ($apiKey != $apiConfig['api_key']) {
+                return $this->abortForbidden();
+            }
         }
-        /**
-         * !!! CHANGE FOLLOWING KEY !!!
-         */
-        if ($apiKey != 'd03641d3c6432a9eb50994506339e227') {
-            return $this->abortForbidden();
+        if ($apiConfig['enable_token']) {
+            if ($this->request->getUri()->getPath() != $apiConfig['login_route']) {
+                $token = Token::read();
+                if (is_null($token)) {
+                    return $this->abortForbidden();
+                }
+                $this->resourceIdentifier = $token->getResourceIdentifier();
+            }
         }
         parent::before();
         return true;
@@ -82,6 +98,15 @@ abstract class ApiController extends SecurityController
     protected function success(array $data = []): Response
     {
         return $this->json(array_merge(['result' => 'success'], $data));
+    }
+
+    protected function json($data): Response
+    {
+        if (!empty($this->resourceIdentifier)) {
+            $token = new Token($this->resourceIdentifier);
+            $data[Token::PARAMETER_NAME] = $token->__toString();
+        }
+        return parent::json($data);
     }
 
     /**
