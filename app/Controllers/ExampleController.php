@@ -1,7 +1,5 @@
 <?php namespace Controllers;
 
-use Models\Token;
-
 class ExampleController extends ApiController
 {
     public function initializeRoutes()
@@ -21,10 +19,8 @@ class ExampleController extends ApiController
         if ($userId < 1) {
             return $this->error(["Login failed!"]);
         }
-        $token = new Token($userId);
-        return $this->success([
-            Token::PARAMETER_NAME => $token->__toString()
-        ]);
+        $this->resourceIdentifier = $userId;
+        return $this->success();
     }
 
     private function login(): int

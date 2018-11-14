@@ -56,6 +56,7 @@ abstract class ApiController extends SecurityController
                 return $this->abortForbidden();
             }
         }
+        // enable expiration
         if ($apiConfig['enable_token']) {
             if ($this->request->getUri()->getPath() != $apiConfig['login_route']) {
                 $token = Token::read();
