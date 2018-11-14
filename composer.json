@@ -10,7 +10,8 @@
     }
   ],
   "require": {
-    "zephyrus/zephyrus": "^0.10"
+    "zephyrus/zephyrus": "^0.10",
+    "ext-pdo": "*"
   },
   "require-dev": {
     "phpunit/phpunit": "5.5.*",
