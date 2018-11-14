@@ -11,7 +11,6 @@ require ROOT_DIR . '/vendor/autoload.php';
 
 use Zephyrus\Application\Configuration;
 use Zephyrus\Application\Bootstrap;
-use Zephyrus\Application\Session;
 use Zephyrus\Network\Router;
 
 $router = new Router();
@@ -21,4 +20,3 @@ if (Configuration::getApplicationConfiguration('env') == 'prod') {
     include('handlers.php');
 }
 Bootstrap::start();
-Session::getInstance()->start();
