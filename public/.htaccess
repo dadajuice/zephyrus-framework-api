@@ -3,7 +3,7 @@ php_value auto_prepend_file ../app/kernel.php
 
 # Routes definition
 RewriteEngine On
-RewriteCond %{THE_REQUEST} !(robots.txt|sitemap.xml|stylesheets|javascripts|assets|favicon.ico)
+RewriteCond %{THE_REQUEST} !(robots.txt|sitemap.xml)
 RewriteRule ^/?(.+)/?$ index.php [NC,L,QSA]
 
 # Deny all access to .php files
