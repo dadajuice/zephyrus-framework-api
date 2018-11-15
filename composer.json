@@ -1,8 +1,7 @@
 {
-  "name": "zephyrus/framework",
-  "description": "Basic framework for the Zephyrus core",
+  "name": "zephyrus/framework-api",
+  "description": "Basic API framework for the Zephyrus core",
   "license": "MIT",
-  "minimum-stability": "beta",
   "authors": [
     {
       "name": "David Tucker",
@@ -10,8 +9,7 @@
     }
   ],
   "require": {
-    "zephyrus/zephyrus": "^0.10",
-    "ext-pdo": "*"
+    "zephyrus/zephyrus": "0.10.*"
   },
   "require-dev": {
     "phpunit/phpunit": "5.5.*",
