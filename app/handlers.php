@@ -7,32 +7,39 @@
  * about the errors. Details are logged in errors.log file. You can modify each
  * error handling as you see fit (redirection, disconnection, messages, ...).
  */
+
+use Zephyrus\Application\Configuration;
 use Zephyrus\Application\ErrorHandler;
 use Zephyrus\Exceptions\RouteNotFoundException;
 use Zephyrus\Exceptions\DatabaseException;
+use Zephyrus\Network\ContentType;
+use Zephyrus\Network\Response;
 
 $errorHandler = new ErrorHandler();
 
 $errorHandler->exception(function (Error $e) {
+    sendExceptionError($e);
 });
 
 $errorHandler->exception(function (Exception $e) {
+    sendExceptionError($e);
 });
 
 $errorHandler->exception(function (DatabaseException $e) {
+    sendExceptionError($e);
 });
 
 $errorHandler->exception(function (RouteNotFoundException $e) {
+    sendExceptionError($e);
 });
 
-// Its recommended to catch in security middleware
-//$errorHandler->exception(function(UnauthorizedAccessException $e) {
-//});
-
-// Its recommended to catch in security middleware
-//$errorHandler->exception(function (InvalidCsrfException $e) {
-//});
-
-// Its recommended to catch in security middleware
-//$errorHandler->exception(function (InvalidCsrfException $e) {
-//});
+function sendExceptionError(Throwable $exception)
+{
+    $response = new Response(ContentType::PLAIN, 500);
+    if (Configuration::getApplicationConfiguration('env') == 'dev') {
+        $response = \Zephyrus\Network\ResponseFactory::getInstance()->buildJson([
+            'result' => 'error', 'errors' => [$exception->getMessage()]
+        ]);
+    }
+    $response->send();
+}
