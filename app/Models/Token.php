@@ -115,6 +115,7 @@ class Token
             throw new TokenException(TokenException::ERR_RESOURCE_NOT_FOUND);
         }
         $row = (object) $row;
+        var_dump($row);exit;
         if ($row->expiration < date(Broker::SQL_FORMAT_DATE_TIME)) {
             self::deleteToken($resourceIdentifier);
             throw new TokenException(TokenException::ERR_EXPIRED);
@@ -209,7 +210,7 @@ class Token
      */
     private function getExpiration(): string
     {
-        $configuredExpirationTime = Configuration::getConfiguration('api', 'expiration');
+        $configuredExpirationTime = Configuration::getConfiguration('token', 'expiration');
         $currentTimestamp = time() + $configuredExpirationTime;
         return date(Broker::SQL_FORMAT_DATE_TIME, $currentTimestamp);
     }
