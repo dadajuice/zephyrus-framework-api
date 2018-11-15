@@ -1,4 +1,4 @@
-<?php namespace Models\Brokers;
+<?php namespace Models;
 
 class TokenException extends \Exception
 {

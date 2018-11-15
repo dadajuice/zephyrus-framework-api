@@ -1,6 +1,5 @@
 <?php namespace Models;
 
-use Models\Brokers\TokenException;
 use PDO;
 use Zephyrus\Application\Configuration;
 use Zephyrus\Database\Broker;

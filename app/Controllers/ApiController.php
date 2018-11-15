@@ -46,28 +46,11 @@ abstract class ApiController extends \Zephyrus\Security\Controller
      */
     public function before()
     {
-        $keyConfig = Configuration::getConfiguration('key');
-        $tokenConfig = Configuration::getConfiguration('token');
-        if ($keyConfig['enable']) {
-            $apiKey = $this->request->getHeader($keyConfig['header_name']);
-            if (is_null($apiKey)) {
-                $apiKey = $this->request->getParameter($keyConfig['parameter_name']);
-            }
-            if ($apiKey != $keyConfig['key']) {
-                return $this->abortForbidden();
-            }
+        if (($apiKeyCheckResponse = $this->checkApiKey()) instanceof Response) {
+            return $apiKeyCheckResponse;
         }
-        if ($tokenConfig['enable']) {
-            if ($this->request->getUri()->getPath() != $tokenConfig['login_route']) {
-                try {
-                    $token = Token::load();
-                } catch (\Exception $exception) {
-                    return ($tokenConfig['force_forbidden'])
-                        ? $this->abortForbidden()
-                        : $this->error([$exception->getMessage()]);
-                }
-                $this->resourceIdentifier = $token->getResourceIdentifier();
-            }
+        if (($tokenCheckResponse = $this->checkToken()) instanceof Response) {
+            return $tokenCheckResponse;
         }
 
         // May throw an UnauthorizedAccessException, InvalidCsrfException or
@@ -118,5 +101,36 @@ abstract class ApiController extends \Zephyrus\Security\Controller
     protected function error(array $errorMessages = [], array $data = []): Response
     {
         return $this->json(array_merge(['result' => 'error', 'errors' => $errorMessages], $data));
+    }
+
+    private function checkToken(): ?Response
+    {
+        $tokenConfig = Configuration::getConfiguration('token');
+        if ($tokenConfig['enable'] && $this->request->getUri()->getPath() != $tokenConfig['login_route']) {
+            try {
+                $token = Token::load();
+            } catch (\Exception $exception) {
+                return ($tokenConfig['force_forbidden'])
+                    ? $this->abortForbidden()
+                    : $this->error([$exception->getMessage()]);
+            }
+            $this->resourceIdentifier = $token->getResourceIdentifier();
+        }
+        return null;
+    }
+
+    private function checkApiKey(): ?Response
+    {
+        $keyConfig = Configuration::getConfiguration('key');
+        if ($keyConfig['enable']) {
+            $apiKey = $this->request->getHeader($keyConfig['header_name']);
+            if (is_null($apiKey)) {
+                $apiKey = $this->request->getParameter($keyConfig['parameter_name']);
+            }
+            if ($apiKey != $keyConfig['key']) {
+                return $this->abortForbidden();
+            }
+        }
+        return null;
     }
 }
