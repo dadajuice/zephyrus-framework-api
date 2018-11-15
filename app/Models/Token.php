@@ -1,5 +1,6 @@
 <?php namespace Models;
 
+use Models\Brokers\TokenException;
 use PDO;
 use Zephyrus\Application\Configuration;
 use Zephyrus\Database\Broker;
@@ -48,28 +49,19 @@ class Token
      * database data.
      *
      * @throws DatabaseException
-     * @return Token | null
+     * @throws TokenException
+     * @return Token
      */
-    public static function read(): ?Token
+    public static function read(): Token
     {
         self::loadDatabase();
-        $request = RequestFactory::read();
-        $tokenString = $request->getParameter(self::PARAMETER_NAME);
-        if (is_null($tokenString)) {
-            return null; // exception token not provided
-        }
-        $tokenParts = explode(self::IDENTIFIER_SEPARATOR, $tokenString);
-        if (count($tokenParts) != 2) {
-            return null; // exception invalid token format
-        }
-        list($value, $resourceIdentifier) = $tokenParts;
-
+        list($value, $resourceIdentifier) = self::getTokenParts();
         $token = self::findTokenByResourceIdentifier($resourceIdentifier);
-        if (!is_null($token) && $token->value == $value) {
+        if ($token->value == $value) {
             self::deleteToken($token->resourceIdentifier);
             return $token;
         }
-        return null; // exception invalid token
+        throw new TokenException(TokenException::ERR_INVALID_VALUE);
     }
 
     /**
@@ -111,19 +103,21 @@ class Token
      * null if none is found, otherwise returns the actual instanced token.
      *
      * @param string $resourceIdentifier
-     * @return Token | null
+     * @return Token
      * @throws DatabaseException
+     * @throws TokenException
      */
-    private static function findTokenByResourceIdentifier(string $resourceIdentifier): ?Token
+    private static function findTokenByResourceIdentifier(string $resourceIdentifier): Token
     {
         $statement = self::$database->query("SELECT * FROM token WHERE resource_id = ?", [$resourceIdentifier]);
-        $row = (object) $statement->next(PDO::FETCH_OBJ);
-        if (empty($row)) {
-            return null; // Exception resource not found
+        $row = $statement->next(PDO::FETCH_OBJ);
+        if (!$row) {
+            throw new TokenException(TokenException::ERR_RESOURCE_NOT_FOUND);
         }
+        $row = (object) $row;
         if ($row->expiration < date(Broker::SQL_FORMAT_DATE_TIME)) {
             self::deleteToken($resourceIdentifier);
-            return null; // Exception expiration
+            throw new TokenException(TokenException::ERR_EXPIRED);
         }
         $token = new Token($row->resource_id);
         $token->value = $row->value;
@@ -206,5 +200,35 @@ class Token
         $configuredExpirationTime = Configuration::getConfiguration('api', 'expiration');
         $currentTimestamp = time() + $configuredExpirationTime;
         return date(Broker::SQL_FORMAT_DATE_TIME, $currentTimestamp);
+    }
+
+    /**
+     * @return array
+     * @throws TokenException
+     */
+    private static function getTokenParts(): array
+    {
+        $tokenString = self::getTokenString();
+        if (is_null($tokenString)) {
+            throw new TokenException(TokenException::ERR_NOT_PROVIDED);
+        }
+        $tokenParts = explode(self::IDENTIFIER_SEPARATOR, $tokenString);
+        if (count($tokenParts) != 2) {
+            throw new TokenException(TokenException::ERR_INVALID_FORMAT);
+        }
+        return $tokenParts;
+    }
+
+    /**
+     * @return null | string
+     */
+    private static function getTokenString(): ?string
+    {
+        $request = RequestFactory::read();
+        $tokenString = $request->getParameter(self::PARAMETER_NAME);
+        if (is_null($tokenString)) {
+            $tokenString = $request->getHeader(self::PARAMETER_NAME);
+        }
+        return $tokenString;
     }
 }
