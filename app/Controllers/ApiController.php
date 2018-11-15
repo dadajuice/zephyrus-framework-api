@@ -62,7 +62,7 @@ abstract class ApiController extends \Zephyrus\Security\Controller
                 try {
                     $token = Token::load();
                 } catch (\Exception $exception) {
-                    return ($tokenConfig['forbidden_on_error'])
+                    return ($tokenConfig['force_forbidden'])
                         ? $this->abortForbidden()
                         : $this->error([$exception->getMessage()]);
                 }
@@ -102,7 +102,7 @@ abstract class ApiController extends \Zephyrus\Security\Controller
                 $token = new Token($this->resourceIdentifier);
                 $data[$tokenConfig['parameter_name']] = $token->__toString();
             } catch (\Exception $exception) {
-                return ($tokenConfig['forbidden_on_error'])
+                return ($tokenConfig['force_forbidden'])
                     ? $this->abortForbidden()
                     : $this->error([$exception->getMessage()]);
             }
