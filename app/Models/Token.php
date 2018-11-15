@@ -11,7 +11,6 @@ use Zephyrus\Security\Cryptography;
 
 class Token
 {
-    public const PARAMETER_NAME = "token";
     private const IDENTIFIER_SEPARATOR = "|";
 
     /**
@@ -34,7 +33,7 @@ class Token
      * identifier. Will be properly generated only when the toString method
      * is called.
      *
-     * @throws DatabaseException
+     * @throws TokenException
      * @param string $resourceIdentifier
      */
     public function __construct(string $resourceIdentifier)
@@ -48,11 +47,10 @@ class Token
      * matches, null is returned. Otherwise, the token is build from the
      * database data.
      *
-     * @throws DatabaseException
      * @throws TokenException
      * @return Token
      */
-    public static function read(): Token
+    public static function load(): Token
     {
         self::loadDatabase();
         list($value, $resourceIdentifier) = self::getTokenParts();
@@ -68,7 +66,7 @@ class Token
      * Token is created and inserted in database when this method is called
      * because it is considered "ready" only then.
      *
-     * @throws DatabaseException
+     * @throws TokenException
      * @return string
      */
     public function __toString(): string
@@ -90,7 +88,7 @@ class Token
      * insert the token with the associated resource identifier to the
      * database.
      *
-     * @throws DatabaseException
+     * @throws TokenException
      */
     private function generate()
     {
@@ -104,13 +102,16 @@ class Token
      *
      * @param string $resourceIdentifier
      * @return Token
-     * @throws DatabaseException
      * @throws TokenException
      */
     private static function findTokenByResourceIdentifier(string $resourceIdentifier): Token
     {
-        $statement = self::$database->query("SELECT * FROM token WHERE resource_id = ?", [$resourceIdentifier]);
-        $row = $statement->next(PDO::FETCH_OBJ);
+        try {
+            $statement = self::$database->query("SELECT * FROM token WHERE resource_id = ?", [$resourceIdentifier]);
+            $row = $statement->next(PDO::FETCH_OBJ);
+        } catch (DatabaseException $exception) {
+            throw new TokenException(TokenException::ERR_DATABASE);
+        }
         if (!$row) {
             throw new TokenException(TokenException::ERR_RESOURCE_NOT_FOUND);
         }
@@ -128,41 +129,53 @@ class Token
      * Query that take care to properly remove any saved token associated with
      * the associated resource identifier and insert the token value.
      *
-     * @throws DatabaseException
+     * @throws TokenException
      */
     private function insertToken()
     {
         self::deleteToken($this->resourceIdentifier);
-        self::$database->query("INSERT INTO token(resource_id, value, expiration) VALUES(?, ?, ?)", [
-            $this->resourceIdentifier,
-            $this->value,
-            $this->getExpiration()
-        ]);
+        try {
+            self::$database->query("INSERT INTO token(resource_id, value, expiration) VALUES(?, ?, ?)", [
+                $this->resourceIdentifier,
+                $this->value,
+                $this->getExpiration()
+            ]);
+        } catch (DatabaseException $exception) {
+            throw new TokenException(TokenException::ERR_DATABASE);
+        }
     }
 
     /**
      * Removes the token with the given resource identifier from the database.
      *
      * @param int $resourceIdentifier
-     * @throws DatabaseException
+     * @throws TokenException
      */
     private static function deleteToken(int $resourceIdentifier)
     {
-        self::$database->query("DELETE FROM token WHERE resource_id = ?", [$resourceIdentifier]);
+        try {
+            self::$database->query("DELETE FROM token WHERE resource_id = ?", [$resourceIdentifier]);
+        } catch (DatabaseException $exception) {
+            throw new TokenException(TokenException::ERR_DATABASE);
+        }
     }
 
     /**
      * Since this class is build to work independently of any other data
      * sources, it is using a simple sqlite file to store token data.
      *
-     * @throws DatabaseException
+     * @throws TokenException
      */
     private static function loadDatabase()
     {
-        if (is_null(self::$database)) {
-            self::$database = new Database('sqlite:' . ROOT_DIR . '/token.db');
-            self::pragma();
-            self::createTable();
+        try {
+            if (is_null(self::$database)) {
+                self::$database = new Database('sqlite:' . ROOT_DIR . '/token.db');
+                self::pragma();
+                self::createTable();
+            }
+        } catch (DatabaseException $exception) {
+            throw new TokenException(TokenException::ERR_DATABASE);
         }
     }
 
@@ -224,10 +237,11 @@ class Token
      */
     private static function getTokenString(): ?string
     {
+        $config = Configuration::getConfiguration('token');
         $request = RequestFactory::read();
-        $tokenString = $request->getParameter(self::PARAMETER_NAME);
+        $tokenString = $request->getParameter($config['parameter_name']);
         if (is_null($tokenString)) {
-            $tokenString = $request->getHeader(self::PARAMETER_NAME);
+            $tokenString = $request->getHeader($config['header_name']);
         }
         return $tokenString;
     }

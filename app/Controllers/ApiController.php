@@ -46,22 +46,25 @@ abstract class ApiController extends SecurityController
      */
     public function before()
     {
-        $apiConfig = Configuration::getConfiguration('api');
-        if ($apiConfig['enable_api_key']) {
-            $apiKey = $this->request->getHeader('X-API-KEY');
+        $keyConfig = Configuration::getConfiguration('key');
+        $tokenConfig = Configuration::getConfiguration('token');
+        if ($keyConfig['enable']) {
+            $apiKey = $this->request->getHeader($keyConfig['header_name']);
             if (is_null($apiKey)) {
-                $apiKey = $this->request->getParameter('apikey');
+                $apiKey = $this->request->getParameter($keyConfig['parameter_name']);
             }
-            if ($apiKey != $apiConfig['api_key']) {
+            if ($apiKey != $keyConfig['key']) {
                 return $this->abortForbidden();
             }
         }
-        // enable expiration
-        if ($apiConfig['enable_token']) {
-            if ($this->request->getUri()->getPath() != $apiConfig['login_route']) {
-                $token = Token::read();
-                if (is_null($token)) {
-                    return $this->abortForbidden();
+        if ($tokenConfig['enable']) {
+            if ($this->request->getUri()->getPath() != $tokenConfig['login_route']) {
+                try {
+                    $token = Token::load();
+                } catch (\Exception $exception) {
+                    return ($tokenConfig['forbidden_on_error'])
+                        ? $this->abortForbidden()
+                        : $this->error([$exception->getMessage()]);
                 }
                 $this->resourceIdentifier = $token->getResourceIdentifier();
             }
@@ -70,75 +73,27 @@ abstract class ApiController extends SecurityController
         return true;
     }
 
-    public function after(?Response $response)
+    protected function json($data): Response
     {
-        return parent::after($response);
+        $tokenConfig = Configuration::getConfiguration('token');
+        if ($tokenConfig['enable'] && !empty($this->resourceIdentifier)) {
+            try {
+                $token = new Token($this->resourceIdentifier);
+                $data[$tokenConfig['parameter_name']] = $token->__toString();
+            } catch (\Exception $exception) {
+                return ($tokenConfig['forbidden_on_error'])
+                    ? $this->abortForbidden()
+                    : $this->error([$exception->getMessage()]);
+            }
+        }
+        return parent::json($data);
     }
 
-    /**
-     * Basic method to quickly returns a success response to the client in JSON
-     * format. Additional data can be sent if needed.
-     *
-     * Basic Structure is :
-     *
-     * {
-     *     "result": "success"
-     * }
-     *
-     * With the following data (['foo' => 3, 'bar' => 'test'] structure is :
-     *
-     * {
-     *    "result": "success",
-     *    "foo": 3,
-     *    "bar": "test"
-     * }
-     *
-     * @param array $data
-     * @return Response
-     */
     protected function success(array $data = []): Response
     {
         return $this->json(array_merge(['result' => 'success'], $data));
     }
 
-    protected function json($data): Response
-    {
-        if (!empty($this->resourceIdentifier)) {
-            $token = new Token($this->resourceIdentifier);
-            $data[Token::PARAMETER_NAME] = $token->__toString();
-        }
-        return parent::json($data);
-    }
-
-    /**
-     * Basic method to quickly returns an error response to the client in JSON
-     * format. Additional data can be sent if needed.
-     *
-     * Basic Structure is :
-     *
-     * {
-     *     "result": "error"
-     *     "errors": [
-     *         "Email is invalid",
-     *         "Zip code is invalid"
-     *     ]
-     * }
-     *
-     * With the following data (['foo' => 3, 'bar' => 'test'] structure is :
-     *
-     * {
-     *     "result": "error"
-     *     "errors": [
-     *         "Email is invalid",
-     *         "Zip code is invalid"
-     *     ]
-     *    "foo": 3,
-     *    "bar": "test"
-     * }
-     *
-     * @param array $data
-     * @return Response
-     */
     protected function error(array $errorMessages = [], array $data = []): Response
     {
         return $this->json(array_merge(['result' => 'error', 'errors' => $errorMessages], $data));
