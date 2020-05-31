@@ -77,7 +77,7 @@ function setupErrorHandling()
      * could also log the attempt, etc. The exception contains the requested URL and http method.
      */
     $errorHandler->exception(function (RouteNotFoundException $e) {
-        ResponseFactory::getInstance()->buildAbortNotFound();
+        ResponseFactory::getInstance()->buildAbortNotFound()->send();
     });
 
     /**
