@@ -2,10 +2,9 @@
 
 use Models\Token;
 use Zephyrus\Application\Configuration;
-use Zephyrus\Exceptions\IntrusionDetectionException;
 use Zephyrus\Network\Response;
 
-abstract class ApiController extends \Zephyrus\Security\Controller
+abstract class ApiController extends SecurityController
 {
     /**
      * @var string
@@ -13,38 +12,28 @@ abstract class ApiController extends \Zephyrus\Security\Controller
     protected $resourceIdentifier = "";
 
     /**
-     * Basic sample API authentication with a simple API KEY that the
-     * connecting client must provide. Useful for being really easy to
-     * implement and is a valid solution for mobile devices.
+     * Basic sample API authentication with a simple API KEY that the connecting client must provide. Useful for being
+     * really easy to implement and is a valid solution for mobile devices.
      *
-     * SECURITY WARNING (1) : Knowing that the key needs to be
-     * transmitted to the server :
+     * SECURITY WARNING (1) : Knowing that the key needs to be transmitted to the server :
      *
      * - ALWAYS communicate with your API over HTTPS.
      *
-     * SECURITY WARNING (2) : Knowing that the key needs to be known to
-     * the client :
+     * SECURITY WARNING (2) : Knowing that the key needs to be known to the client :
      *
-     * - DO NOT use this method for communication from client side
-     *   JavaScript application since it can easily be fetched. In that
-     *   case, its more secure to make your client side JS script to
-     *   communicate with a server and make this server do the API calls
-     *   since the server can more securely "hide" the API KEY.
+     * - DO NOT use this method for communication from client side JavaScript application since it can easily be
+     *   fetched. In that case, its more secure to make your client side JS script to communicate with a server and
+     *   make this server do the API calls since the server can more securely "hide" the API KEY.
      *
-     * - CONSIDER that if you use this method for mobile device
-     *   applications, the API KEY will be compiled with your application
-     *   code. There are ways to decompile applications and extract such
-     *   constants, so be aware of this particular use case and evaluate
-     *   the probability and impact of such attack.
+     * - CONSIDER that if you use this method for mobile device applications, the API KEY will be compiled with your
+     *   application code. There are ways to decompile applications and extract such constants, so be aware of this
+     *   particular use case and evaluate the probability and impact of such attack.
      *
-     * - CONSIDER that the following code is a mere example using only one
-     *   static API KEY.
+     * - CONSIDER that the following code is a mere example using only one static API KEY.
      *
-     * @return Response | bool
-     * @throws \Zephyrus\Exceptions\InvalidCsrfException
-     * @throws \Zephyrus\Exceptions\UnauthorizedAccessException
+     * @return Response|null
      */
-    public function before()
+    public function before(): ?Response
     {
         if (($apiKeyCheckResponse = $this->checkApiKey()) instanceof Response) {
             return $apiKeyCheckResponse;
@@ -52,31 +41,45 @@ abstract class ApiController extends \Zephyrus\Security\Controller
         if (($tokenCheckResponse = $this->checkToken()) instanceof Response) {
             return $tokenCheckResponse;
         }
-
-        // May throw an UnauthorizedAccessException, InvalidCsrfException or
-        // IntrusionDetectionException. Its possible to catch the exception directly
-        // here or in the error handling file.
-        try {
-            parent::before();
-        } catch (IntrusionDetectionException $exception) {
-            /**
-             * Defines what to do when an attack attempt (mainly XSS and SQL injection) is
-             * detected in the application. The impact value represents the severity of the
-             * attempt. The code below only logs the attempt in the security.log when impact
-             * is equal or higher than 10. Do nothing more to limit false positive effect on
-             * legit users. IntrusionDetection class is a wrapper of the expose library.
-             *
-             * @see https://github.com/enygma/expose
-             */
-            $data = $exception->getIntrusionData();
-            if ($data['impact'] >= 10) {
-                // Do something (logs, ...)
-                // return $this->abortForbidden();
-            }
-        }
-        return true;
+        return parent::before();
     }
 
+    /**
+     * Returns a successful response to the client. Should be used for every successful response to ensure a proper
+     * uniformity. This will always have status JSON property with value "success" which can then be easily verified
+     * in client app.
+     *
+     * @param array $data
+     * @return Response
+     */
+    protected function success(array $data = []): Response
+    {
+        return $this->json(array_merge(['status' => 'success'], $data));
+    }
+
+    /**
+     * Returns an error response to the client. Should be used for every error to be sent to ensure a proper
+     * uniformity. This will always have status JSON property with value "error" and a property "errors" containing
+     * all error messages which can then be easily verified and processed in client app.
+     *
+     * Depending on the style of API design, you may use the various abort methods to use HTTP code as the only
+     * error handling.
+     *
+     * @param array $errorMessages
+     * @param array $data
+     * @return Response
+     */
+    protected function error(array $errorMessages = [], array $data = []): Response
+    {
+        return $this->json(array_merge(['status' => 'error', 'errors' => $errorMessages], $data));
+    }
+
+    /**
+     * Overrides the default json method to automatically include the token if its enabled in the config.ini file.
+     *
+     * @param mixed $data
+     * @return Response
+     */
     protected function json($data): Response
     {
         $tokenConfig = Configuration::getConfiguration('token');
@@ -93,16 +96,13 @@ abstract class ApiController extends \Zephyrus\Security\Controller
         return parent::json($data);
     }
 
-    protected function success(array $data = []): Response
-    {
-        return $this->json(array_merge(['result' => 'success'], $data));
-    }
-
-    protected function error(array $errorMessages = [], array $data = []): Response
-    {
-        return $this->json(array_merge(['result' => 'error', 'errors' => $errorMessages], $data));
-    }
-
+    /**
+     * Tries to validate a given token if the enable configuration is set to true in the config.ini file. Will return
+     * either an uniform error handling using the error method or a FORBIDDEN http response depending on the
+     * force_forbidden config parameter.
+     *
+     * @return Response|null
+     */
     private function checkToken(): ?Response
     {
         $tokenConfig = Configuration::getConfiguration('token');
@@ -119,6 +119,11 @@ abstract class ApiController extends \Zephyrus\Security\Controller
         return null;
     }
 
+    /**
+     * Tries to validate the given api key by matching with the config.ini configurations.
+     *
+     * @return Response|null
+     */
     private function checkApiKey(): ?Response
     {
         $keyConfig = Configuration::getConfiguration('key');
