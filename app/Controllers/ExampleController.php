@@ -10,20 +10,23 @@ class ExampleController extends ApiController
 
     public function index()
     {
-        // If token is enabled, this route will not render unless the client
-        // provides a valid token for the corresponding resource identifier.
-        return $this->json(['userId' => $this->resourceIdentifier]);
+        // If token is enabled, this route will not render unless the client provides a valid token for the
+        // corresponding resource identifier.
+        return $this->success([
+            'confidential_data' => 'Bruce Wayne is Batman',
+            'userId' => $this->resourceIdentifier
+        ]);
     }
 
     public function login()
     {
+        // Fake example of authentication. Use user "bob" with password "Omega123".
         $userId = $this->authenticate();
         if ($userId < 1) {
             return $this->error(["Login failed!"]);
         }
 
-        // Only need to apply the generic resource identifier to automatically
-        // generate a token.
+        // Only need to apply the generic resource identifier to automatically generate a token.
         $this->resourceIdentifier = $userId;
         return $this->success();
     }
