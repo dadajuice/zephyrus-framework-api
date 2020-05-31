@@ -245,6 +245,131 @@ class ExampleController extends ApiController
 }
 ```
 
+#### Exemple 4 : Fonctionnement des requêtes avec les token api
+
+Le contrôleur démo inclut avec l'installation contient un exemple de requête pour effectuer une authentification `/login` qui permet
+d'obtenir un token pour ensuite consulter la route `/`.
+
+app/Controllers/ExampleController.php
+```php
+<?php namespace Controllers;
+
+class ExampleController extends ApiController
+{
+    public function initializeRoutes()
+    {
+        $this->get("/", "index");
+        $this->post("/login", "login");
+    }
+
+    public function index()
+    {
+        // Il ne sera pas possible d'obtenir ces données sans un TOKEN valide dans la requête qui peut
+        // être soit dans l'url ou l'entête HTTP (voir la configuration).
+        return $this->success([
+            'confidential_data' => 'Bruce Wayne is Batman',
+            'userId' => $this->resourceIdentifier
+        ]);
+    }
+
+    public function login()
+    {       
+        $userId = $this->authenticate();
+        if ($userId < 1) {
+            return $this->error(["Login failed!"]);
+        }
+
+        // Appliquer l'identifiant de la resource authentifié pour utilisation subséquente
+        $this->resourceIdentifier = $userId;
+        return $this->success();
+    }
+
+    /**
+     * Exemple de validation d'authentification.
+     *
+     * @return int
+     */
+    private function authenticate(): int
+    {
+        $username = $this->request->getParameter('username');
+        $password = $this->request->getParameter('password');
+        if ($username == 'bob' && $password == 'Omega123') {
+            return 1;
+        }
+        if ($username == 'lewis' && $password == 'Omega123') {
+            return 2;
+        }
+        return 0;
+    }
+}
+```
+
+La configurations par défaut contient une section key et token. Il est possible de modifier les noms des 
+paramètres au besoin. MODIFIER OBLIGATOIREMENT LA CLÉ. Il est également possible de complètement désactiver
+la clé et le token selon vos besoins d'API.
+
+config.ini
+```
+...
+
+[key]
+enable = true
+key = "d03641d3c6432a9eb50994506339e227"
+parameter_name = "apikey"
+header_name = "X-API-KEY"
+
+[token]
+enable = true
+parameter_name = "token"
+header_name = "X-API-TOKEN"
+login_route = "/login"
+expiration = 86400
+force_forbidden = false
+
+...
+``` 
+
+Dans un logiciel comme Postman, définissez une requête vers `/login` et `/`.
+
+La requête `/login` en prenant soin d'inclure l'entête X-API-KEY ainsi que les paramètres username et password avec les
+valeurs respectives "bob" et "Omega123", va produire la réponse suivante: 
+
+```json
+{
+    "status": "success",
+    "token": "IDeL8UucYh2k6EOKr3w63qSqD5MBlgLale6sr6m5QioYuW9ij8ytxM3YuXH9GKp9|1"
+}
+```
+
+Le TOKEN est valide pour UNE SEULE requête! À chaque requête, le serveur va automatiquement retourner un nouveau
+TOKEN à chaque réponse. L'idée est donc de toujours garder en mémoire dans le logiciel client le dernier TOKEN reçu
+pour le renvoyer lors de la prochaine requête.
+
+La requête `/` en prenant soin d'ajouter le TOKEN dans les paramètres va produire la réponse suivante:
+
+```json
+{
+    "status": "success",
+    "confidential_data": "Bruce Wayne is Batman",
+    "userId": "1",
+    "token": "s3HOF7TS2DeNkOCK9EJqyuUc20sF2TBjszf4RkJGldwAPgDXRcMbU5HZZhUfP7ns|1"
+}
+```
+
+Réutiliser le même TOKEN va produite la requête suivante:
+```json
+{
+    "status": "error",
+    "errors": [
+        "Token value does not match"
+    ]
+}
+```
+
+La classe Token est disponible directement dans le projet ce qui la rend facilement modifiable selon les besoins de 
+votre API. Vous pouvez désactiver complètement le traitement du TOKEN en mettant la configuration enabled à false dans
+la section `[token]` du fichier config.ini.
+
 # Contribution
 
 #### Sécurité
