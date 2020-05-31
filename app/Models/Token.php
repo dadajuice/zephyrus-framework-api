@@ -1,9 +1,8 @@
 <?php namespace Models;
 
-use PDO;
 use Zephyrus\Application\Configuration;
-use Zephyrus\Database\Broker;
-use Zephyrus\Database\Database;
+use Zephyrus\Database\Core\Adapters\SqliteAdapter;
+use Zephyrus\Database\Core\Database;
 use Zephyrus\Exceptions\DatabaseException;
 use Zephyrus\Network\RequestFactory;
 use Zephyrus\Security\Cryptography;
@@ -107,7 +106,7 @@ class Token
     {
         try {
             $statement = self::$database->query("SELECT * FROM token WHERE resource_id = ?", [$resourceIdentifier]);
-            $row = $statement->next(PDO::FETCH_OBJ);
+            $row = $statement->next();
         } catch (DatabaseException $exception) {
             throw new TokenException(TokenException::ERR_DATABASE);
         }
@@ -115,7 +114,7 @@ class Token
             throw new TokenException(TokenException::ERR_RESOURCE_NOT_FOUND);
         }
         $row = (object) $row;
-        if ($row->expiration < date(Broker::SQL_FORMAT_DATE_TIME)) {
+        if ($row->expiration < date(FORMAT_DATE_TIME)) {
             self::deleteToken($resourceIdentifier);
             throw new TokenException(TokenException::ERR_EXPIRED);
         }
@@ -169,7 +168,8 @@ class Token
     {
         try {
             if (is_null(self::$database)) {
-                self::$database = new Database('sqlite:' . ROOT_DIR . '/token.db');
+                $adapter = new SqliteAdapter(['dbms' => 'sqlite', 'database' => ROOT_DIR . '/token.db']);
+                self::$database = new Database($adapter);
                 self::pragma();
                 self::createTable();
             }
@@ -211,7 +211,7 @@ class Token
     {
         $configuredExpirationTime = Configuration::getConfiguration('token', 'expiration');
         $currentTimestamp = time() + $configuredExpirationTime;
-        return date(Broker::SQL_FORMAT_DATE_TIME, $currentTimestamp);
+        return date(FORMAT_DATE_TIME, $currentTimestamp);
     }
 
     /**
